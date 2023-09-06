@@ -1,7 +1,7 @@
 import inspect
 
 import pyscf, numpy
-from pyscf import gto, fci
+from eph import fci
 
 def FCI(m_or_mf=None, mo=None, singlet=None, h1p=None, h1e1p=None, nph_max=4):
     """FCI electronic-phonon solver. This function is a wrapper of the
@@ -56,9 +56,7 @@ def FCI(m_or_mf=None, mo=None, singlet=None, h1p=None, h1e1p=None, nph_max=4):
                    nmode=nmode, norb=norb, nelec=nelec, nph_max=nph_max,
                    ci0=None, ecore=ecore, **kwargs):
 
-            print(ecore)
-
-            res = pygfn.eph._fci.kernel(
+            res = fci.kernel(
                 h1e=h1e, eri=eri, h1e1p=h1e1p, h1p=h1p,
                 nsite=norb, nmode=nmode,
                 nelec=nelec, nph_max=nph_max,

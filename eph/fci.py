@@ -4,8 +4,8 @@ import pyscf
 from pyscf import fci, lib, ao2mo
 
 from pyscf.fci import direct_ep
+from pyscf.fci import cistring
 from pyscf.fci.cistring import num_strings
-from pyscf.fci.cistring import gen_linkstr_index
 from pyscf.fci.direct_spin1 import _unpack_nelec
 from pyscf.fci.direct_ep import slices_for, slices_for_cre, slices_for_des
 
@@ -271,6 +271,43 @@ def gen_hop(h1e, eri, h1e1p, h1p, nsite, nelec, nmode, nph_max, fci_obj=None):
 
     return hop
 
+def make_rdm1e(v, nsite, nelec, nmode, nph_max, fci_obj=None):
+    if fci_obj is None:
+        fci_obj = pyscf.fci.direct_spin1
+
+    # Calculate the shape for the wave function array
+    shape = make_shape(nsite, nelec, nmode, nph_max)
+    # Reshape the input array according to the calculated shape
+    c = v.reshape(shape)
+    na, nb = shape[:2]
+    c = c.reshape(na * nb, -1)
+    np = c.shape[1]
+
+    gen_rdm = lambda i: fci_obj.make_rdm1(c[:, i], nsite, nelec)
+    rdm1e = numpy.sum([gen_rdm(i) for i in range(np)], axis=0)
+    return rdm1e
+def make_rdm1p(v, nsite, nelec, nmode, nph_max, fci_obj=None):
+    # Phonon-phonon coupling
+    # Determine the shape of the CI array
+    shape = make_shape(nsite, nelec, nmode, nph_max)
+    # Reshape the input array according to the determined shape
+    c = v.reshape(shape)
+    na, nb = shape[:2]
+
+    factors = numpy.sqrt(numpy.arange(1, nph_max + 1))
+    t1 = numpy.zeros((nmode,) + shape)
+
+    # Add phonon contributions to the Hamiltonian diagonal
+    for alph in range(nmode):
+        for nph in range(nph_max + 1):
+            s1 = slices_for_cre(alph, nmode, nph)
+            s0 = slices_for(alph, nmode, nph)
+
+            t1[(alph,) + s0] += c[s1] * factors[nph]
+
+    rdm1e = lib.dot(t1.reshape(nsite,-1), t1.reshape(nsite,-1).T)
+    return rdm1e
+
 def kernel(h1e, eri, h1e1p, h1p, nsite, nmode, nelec, nph_max,
            tol=1e-9, max_cycle=100, verbose=0, ci0=None, h0=0.0,
            noise=1e-6, fci_obj=None, **kwargs):
@@ -339,7 +376,7 @@ if __name__ == '__main__':
     nsite = 2
     nmode = 2
     nph_max = 4
-    nroots = 5
+    nroots = 10
 
     u = 1.5
     g = 0.5
@@ -371,6 +408,7 @@ if __name__ == '__main__':
         ene_1, c_1 = kernel(h1e, eri, h1e1p, h1p, nmode, nsite, nelec, nph_max=nph_max, nroots=nroots)
 
         err = numpy.linalg.norm(ene_1[0] - ene_0[0]) / ene_1.size
+        print(ene_0[0], ene_1[0])
         assert err < 1e-8, "error in energy: %6.4e" % err
 
         # Note: the implementation in pyscf.fci.direct_ep is not correct.
@@ -387,5 +425,12 @@ if __name__ == '__main__':
 
         err = numpy.linalg.norm(hdiag_1 - hdiag_0) / hdiag_0.size
         assert err < 1e-8, "error in hdiag: %6.4e" % err
+
+        rdm1e_0 = make_rdm1e(c_1[0], nsite, nelec, nmode, nph_max)
+        rdm1e_1 = pyscf.fci.direct_ep.make_rdm1e(c_1[0], nsite, nelec)
+        print(rdm1e_0)
+        print(rdm1e_1)
+        err = numpy.linalg.norm(rdm1e_1 - rdm1e_0) / rdm1e_0.size
+        assert err < 1e-8, "error in rdm1e: %6.4e" % err
 
         print("Passed: ", nelec)

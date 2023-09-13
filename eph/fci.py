@@ -286,6 +286,30 @@ def make_rdm1e(v, nsite, nelec, nmode, nph_max, fci_obj=None):
     gen_rdm = lambda i: fci_obj.make_rdm1(c[:, i], nsite, nelec)
     rdm1e = numpy.sum([gen_rdm(i) for i in range(np)], axis=0)
     return rdm1e
+
+def spin_square(v, nsite, nelec, nmode, nph_max, fci_obj=None):
+    if fci_obj is None:
+        fci_obj = pyscf.fci.direct_spin1
+    else:
+        print("Warning: fci_obj is not None. This might cause errors.")
+
+
+    # Calculate the shape for the wave function array
+    shape = make_shape(nsite, nelec, nmode, nph_max)
+    # Reshape the input array according to the calculated shape
+    c = v.reshape(shape)
+    na, nb = shape[:2]
+    c = c.reshape(na * nb, -1)
+    np = c.shape[1]
+
+    gen_s2_c = lambda i: fci_obj.contract_ss(c[:, i], nsite, nelec)
+    s2_c = numpy.asarray([gen_s2_c(i).reshape(na*nb,) for i in range(np)]).transpose()
+    s2 = numpy.einsum("Ix,Ix->", s2_c, c)
+    s = numpy.sqrt(s2 + 0.25) - 0.5
+    mult = 2 * s + 1
+    return s2, mult
+
+
 def make_rdm1p(v, nsite, nelec, nmode, nph_max, fci_obj=None):
     # Phonon-phonon coupling
     # Determine the shape of the CI array

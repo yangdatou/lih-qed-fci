@@ -2,8 +2,6 @@ import numpy, scipy
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 
-from pyscf.lib import chkfile
-
 params = {
         "font.size":       18,
         "axes.titlesize":  20,

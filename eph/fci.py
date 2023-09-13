@@ -437,8 +437,7 @@ if __name__ == '__main__':
 
         rdm1p_0 = pyscf.fci.direct_ep.make_rdm1p(c_1[0], nsite, nelec, nph_max)
         rdm1p_1 = make_rdm1p(c_1[0], nsite, nelec, nmode, nph_max)
-
-        print(rdm1e_1)
-        print(rdm1p_0)
+        err = numpy.linalg.norm(rdm1p_1 - rdm1p_0) / rdm1p_0.size
+        assert err < 1e-8, f"error in rdm1p: {err:.4e}"
 
         print(f"Passed: {nelec}")

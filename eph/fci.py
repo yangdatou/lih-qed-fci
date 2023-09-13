@@ -299,7 +299,7 @@ def make_rdm1p(v, nsite, nelec, nmode, nph_max, fci_obj=None):
 
     # Add phonon contributions to the Hamiltonian diagonal
     for alph in range(nmode):
-        for nph in range(nph_max + 1):
+        for nph in range(nph_max):
             s1 = slices_for_cre(alph, nmode, nph)
             s0 = slices_for(alph, nmode, nph)
 
@@ -362,7 +362,7 @@ def kernel(h1e, eri, h1e1p, h1p, nsite, nmode, nelec, nph_max,
     hdiag = make_hdiag(h1e, eri, h1e1p, h1p, nsite, nelec, nmode, nph_max, fci_obj=fci_obj)
 
     # Preconditioner for Davidson
-    precond = lambda x, e, *args: x / (hdiag - e + 1e-4)
+    precond = lambda x, e, *args: x / (hdiag - e + noise)
 
     # Use Davidson algorithm to find the lowest eigenvalue and eigenvector
     e, c = lib.davidson(
@@ -372,65 +372,73 @@ def kernel(h1e, eri, h1e1p, h1p, nsite, nmode, nelec, nph_max,
 
     return e + h0, c
 
+
 if __name__ == '__main__':
-    nsite = 2
-    nmode = 2
-    nph_max = 4
-    nroots = 10
+    # Initialize parameters
+    nsite, nmode, nph_max, nroots = 2, 2, 4, 5
+    u, g = 1.5, 0.5
 
-    u = 1.5
-    g = 0.5
-
+    # Define matrices
     h1e = numpy.zeros((nsite, nsite))
     idx_site = numpy.arange(nsite - 1)
     h1e[idx_site + 1, idx_site] = h1e[idx_site, idx_site + 1] = -1.0
 
-    idx_site = numpy.arange(nsite)
-    idx_mode = numpy.arange(nmode)
     eri = numpy.zeros((nsite, nsite, nsite, nsite))
+    idx_site = numpy.arange(nsite)
     eri[idx_site, idx_site, idx_site, idx_site] = u
 
     h1e1p = numpy.zeros((nsite, nsite, nmode))
-    h1e1p[idx_site, idx_site, idx_mode] = g
+    h1e1p[idx_site, idx_site, numpy.arange(nmode)] = g
 
     idx_mode = numpy.arange(nmode - 1)
     h1p = numpy.eye(nmode) * 1.1
     h1p[idx_mode + 1, idx_mode] = h1p[idx_mode, idx_mode + 1] = 0.1
 
-    nelecs = [(ia, ib) for ia in range(nsite + 1) for ib in range(ia + 1)]
+    nelec_list = [(ia, ib) for ia in range(nsite + 1) for ib in range(ia + 1)]
 
-    for nelec in nelecs:
+    # Begin loop over electron configurations
+    for nelec in nelec_list:
         shape = make_shape(nsite, nelec, nmode, nph_max)
-        size  = numpy.prod(shape)
+        size = numpy.prod(shape)
 
+        # Calculate kernels
         ene_0, c_0 = fci.direct_ep.kernel(h1e, u, g, h1p, nsite, nelec, nph_max,
-                                          tol=1e-10, max_cycle=1000, verbose=0, nroots=nroots)
-        ene_1, c_1 = kernel(h1e, eri, h1e1p, h1p, nmode, nsite, nelec, nph_max=nph_max, nroots=nroots)
+                                          tol=1e-10, max_cycle=1000, verbose=0, nroots=2*nroots)
 
-        err = numpy.linalg.norm(ene_1[0] - ene_0[0]) / ene_1.size
-        print(ene_0[0], ene_1[0])
-        assert err < 1e-8, "error in energy: %6.4e" % err
+        h1e1p0 = [h1e1p[:, :, alph] - numpy.eye(nsite) / nsite / nsite for alph in range(nmode)]
+        h1e1p0 = numpy.asarray(h1e1p0).transpose(1, 2, 0)
+        ene_1, c_1 = kernel(h1e, eri, h1e1p0, h1p, nmode, nsite, nelec, ci0=None, noise=1e-4,
+                            nph_max=nph_max, nroots=2*nroots, verbose=0, max_cycle=1000)
 
+        # Check energy error
+        err = numpy.linalg.norm(ene_1[:nroots] - ene_0[:nroots]) / nroots
+        assert err < 1e-8, f"{nelec}, error in energy: {err:.4e}"
+
+        # Validate hdiag implementation
         # Note: the implementation in pyscf.fci.direct_ep is not correct.
         # Directly comparing the hdiag with the one from pyscf.fci.direct_ep will fail.
         hdiag_0 = []
-        hop = gen_hop(h1e, eri, h1e1p, 0.0 * h1p, nsite, nelec, nmode, nph_max)
+        hop = gen_hop(h1e, eri, h1e1p, h1p, nsite, nelec, nmode, nph_max)
         for i in range(size):
             v = numpy.zeros(size)
             v[i] = 1.0
             hdiag_0.append(hop(v)[i])
         hdiag_0 = numpy.asarray(hdiag_0)
 
-        hdiag_1 = make_hdiag(h1e, eri, h1e1p, 0.0 * h1p, nsite, nelec, nmode, nph_max)
-
+        hdiag_1 = make_hdiag(h1e, eri, h1e1p, h1p, nsite, nelec, nmode, nph_max)
         err = numpy.linalg.norm(hdiag_1 - hdiag_0) / hdiag_0.size
-        assert err < 1e-8, "error in hdiag: %6.4e" % err
+        assert err < 1e-8, f"error in hdiag: {err:.4e}"
 
-        rdm1e_0 = make_rdm1e(c_1[0], nsite, nelec, nmode, nph_max)
-        rdm1e_1 = pyscf.fci.direct_ep.make_rdm1e(c_1[0], nsite, nelec)
-        print(rdm1e_0)
-        print(rdm1e_1)
+        # Validate rdm1e implementation
+        rdm1e_0 = pyscf.fci.direct_ep.make_rdm1e(c_1[0], nsite, nelec)
+        rdm1e_1 = make_rdm1e(c_1[0], nsite, nelec, nmode, nph_max)
         err = numpy.linalg.norm(rdm1e_1 - rdm1e_0) / rdm1e_0.size
-        assert err < 1e-8, "error in rdm1e: %6.4e" % err
+        assert err < 1e-8, f"error in rdm1e: {err:.4e}"
 
-        print("Passed: ", nelec)
+        rdm1p_0 = pyscf.fci.direct_ep.make_rdm1p(c_1[0], nsite, nelec, nph_max)
+        rdm1p_1 = make_rdm1p(c_1[0], nsite, nelec, nmode, nph_max)
+
+        print(rdm1e_1)
+        print(rdm1p_0)
+
+        print(f"Passed: {nelec}")

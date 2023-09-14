@@ -329,7 +329,7 @@ def make_rdm1p(v, nsite, nelec, nmode, nph_max, fci_obj=None):
 
             t1[(alph,) + s0] += c[s1] * factors[nph]
 
-    rdm1e = lib.dot(t1.reshape(nsite,-1), t1.reshape(nsite,-1).T)
+    rdm1e = lib.dot(t1.reshape(nmode,-1), t1.reshape(nmode,-1).T)
     return rdm1e
 
 def kernel(h1e, eri, h1e1p, h1p, nsite, nmode, nelec, nph_max,

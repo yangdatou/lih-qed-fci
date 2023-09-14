@@ -62,8 +62,8 @@ def main(mol="lih", basis_set="sto3g", bond_lengths=None, alph=None):
             fci_obj.nroots = nstate
             fci_obj.max_cycle = 1000
             fci_obj.conv_tol  = 1e-6
-            fci_obj.verbose   = 0
-            e0, c0 = fci_obj.kernel()
+            fci_obj.verbose   = 10
+            e0, c0 = fci_obj.kernel(ci0=ci0)
 
             singlet_count = 0
             triplet_count = 0
@@ -107,6 +107,7 @@ def main(mol="lih", basis_set="sto3g", bond_lengths=None, alph=None):
             fci_obj = eph.FCI(m, mo=coeff_lo, h1p=h1p, h1e1p=h1e1p_ao, nph_max=nph_max, singlet=False)
             fci_obj.max_cycle = 1000
             fci_obj.conv_tol = 1e-6
+            fci_obj.verbose = 10
             e0, c0 = fci_obj.kernel(nroots=nstate, ci0=ci0)
 
             singlet_count = 0
@@ -148,7 +149,7 @@ def main(mol="lih", basis_set="sto3g", bond_lengths=None, alph=None):
 if __name__ == "__main__":
     # Define the bond lengths to be calculated
     basis_set = '631g'
-    bond_lengths = numpy.linspace(2.0, 5.0, 61)
+    bond_lengths = numpy.linspace(2.2, 5.0, 29)
     main(mol="lih", basis_set=basis_set, bond_lengths=bond_lengths, alph=None)
     main(mol="lih", basis_set=basis_set, bond_lengths=bond_lengths, alph=0.001)
     main(mol="lih", basis_set=basis_set, bond_lengths=bond_lengths, alph=0.002)

@@ -148,7 +148,11 @@ def main(mol="lih", basis_set="sto3g", bond_lengths=None, alph=None):
 if __name__ == "__main__":
     # Define the bond lengths to be calculated
     basis_set = '631g'
-    bond_lengths = numpy.linspace(2.3, 5.0, 26)
-    # main(mol="lih", basis_set=basis_set, bond_lengths=bond_lengths, alph=None)
+    bond_lengths = numpy.linspace(2.0, 5.0, 61)
+    main(mol="lih", basis_set=basis_set, bond_lengths=bond_lengths, alph=None)
+    main(mol="lih", basis_set=basis_set, bond_lengths=bond_lengths, alph=0.001)
     main(mol="lih", basis_set=basis_set, bond_lengths=bond_lengths, alph=0.002)
-    # main(mol="lih", basis_set=basis_set, bond_lengths=bond_lengths, alph=0.01)
+    main(mol="lih", basis_set=basis_set, bond_lengths=bond_lengths, alph=0.003)
+    main(mol="lih", basis_set=basis_set, bond_lengths=bond_lengths, alph=0.004)
+    main(mol="lih", basis_set=basis_set, bond_lengths=bond_lengths, alph=0.005)
+    
